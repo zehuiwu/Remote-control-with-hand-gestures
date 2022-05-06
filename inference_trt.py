@@ -13,7 +13,6 @@ import torch.onnx
 from PIL import Image, ImageOps
 import tvm.contrib.graph_runtime as graph_runtime
 from mobilenet_v2_tsm import MobileNetV2
-from torch2trt import torch2trt
 from torch2trt import TRTModule
 import IPython
 
@@ -213,9 +212,7 @@ def inference():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 
-    # env variables
-    full_screen = False
-    
+    # send outputs to another device
     host = "192.168.1.193" # set to IP address of target computer
     port = 13000
     addr = (host, port)
@@ -248,10 +245,10 @@ def inference():
     i_frame = 0
     try:
         print("Ready!")
-        while i_frame<500:
+        while i_frame<1100:
             i_frame += 1
             _, img = cap.read()  # (480, 640, 3) 0 ~ 255
-            if i_frame % 1 == 0:  # skip every other frame to obtain a suitable frame rate
+            if i_frame % 1 == 0:  # option: skip every other frame to obtain a better frame rate
                 t1 = time.time()
                 img_tran = transform([Image.fromarray(img).convert('RGB')])
                 input_var = torch.autograd.Variable(img_tran.view(1, 3, img_tran.size(1), img_tran.size(2)))
@@ -282,7 +279,7 @@ def inference():
                 idx, history = process_output(idx_, history)
 
                 t2 = time.time()
-                print(f"{index} {catigories[idx]}")
+                print(f"{i_frame} {catigories[idx]}")
 
 
                 current_time = t2 - t1
@@ -291,14 +288,6 @@ def inference():
             UDPSock.sendto(catigories[idx].encode(), addr)
 #             show_array(img)
             IPython.display.clear_output(wait=True)
-
-
-            if t is None:
-                t = time.time()
-            else:
-                nt = time.time()
-                index += 1
-                t = nt
            
     except KeyboardInterrupt:
         print("Video feed stopped.")
@@ -306,5 +295,5 @@ def inference():
         UDPSock.close()
         os._exit(0)
 
-    print(history_timing)
-#main()
+    return history_timing
+

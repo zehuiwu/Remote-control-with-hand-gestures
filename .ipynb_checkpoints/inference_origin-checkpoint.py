@@ -11,7 +11,6 @@ import torch
 import torchvision
 import torch.onnx
 from PIL import Image, ImageOps
-import tvm.contrib.graph_runtime as graph_runtime
 from mobilenet_v2_tsm import MobileNetV2
 
 import IPython
@@ -26,14 +25,9 @@ REFINE_OUTPUT = True
 
 def get_executor():
     torch_module = MobileNetV2(n_class=27)
-    if not os.path.exists("mobilenetv2_jester_online.pth.tar"):  # checkpoint not downloaded
-        print('Downloading PyTorch checkpoint...')
-        import urllib.request
-        url = 'https://hanlab.mit.edu/projects/tsm/models/mobilenetv2_jester_online.pth.tar'
-        urllib.request.urlretrieve(url, './mobilenetv2_jester_online.pth.tar')
-    torch_module.load_state_dict(torch.load("mobilenetv2_jester_online.pth.tar"))
+    torch_module.load_state_dict(torch.load("mobilenetv2_jester_online.pth.tar", map_location='cuda'))
 
-    return torch_module.cuda()
+    return torch_module
 
 
 def transform(frame: np.ndarray):
@@ -225,8 +219,6 @@ def inference():
     addr = (host, port)
     UDPSock = socket(AF_INET, SOCK_DGRAM)
 
-    t = None
-    index = 0
     print("Build transformer...")
     transform = get_transform()
     print("Build Executor...")
@@ -249,74 +241,55 @@ def inference():
     history_logit = []
     history_timing = []
 
-    i_frame = -1
+    i_frame = 0
     try:
         print("Ready!")
         while True:
             i_frame += 1
             _, img = cap.read()  # (480, 640, 3) 0 ~ 255
-            if i_frame % 1 == 0:  # skip every other frame to obtain a suitable frame rate
+            if i_frame % 1 == 0:  # option: skip every other frame to obtain a suitable frame rate
                 t1 = time.time()
                 img_tran = transform([Image.fromarray(img).convert('RGB')])
                 input_var = torch.autograd.Variable(img_tran.view(1, 3, img_tran.size(1), img_tran.size(2)))
                 img_nd = input_var.cuda()
-                inputs = (img_nd,) + buffer
-                    
-                #print(inputs)
-                #print(inputs.shape)
-                
-                outputs = executor(*inputs)
-                
-                print(outputs)
-                print(outputs.shape)
-                
+                inputs = (img_nd,) + buffer 
+                with torch.no_grad():
+                    outputs = executor(*inputs)
                 feat, buffer = outputs[0], outputs[1:]
-                assert isinstance(feat, tvm.nd.NDArray)
 
                 if SOFTMAX_THRES > 0:
-                    feat_np = feat.asnumpy().reshape(-1)
+                    feat_np = feat.cpu().detach().numpy().reshape(-1)
                     feat_np -= feat_np.max()
                     softmax = np.exp(feat_np) / np.sum(np.exp(feat_np))
 
                     print(max(softmax))
                     if max(softmax) > SOFTMAX_THRES:
-                        idx_ = np.argmax(feat.asnumpy(), axis=1)[0]
+                        idx_ = np.argmax(feat.cpu().detach().numpy(), axis=1)[0]
                     else:
                         idx_ = idx
                 else:
-                    idx_ = np.argmax(feat.asnumpy(), axis=1)[0]
+                    idx_ = np.argmax(feat.cpu().detach().numpy(), axis=1)[0]
 
                 if HISTORY_LOGIT:
-                    history_logit.append(feat.asnumpy())
+                    history_logit.append(feat.cpu().detach().numpy())
                     history_logit = history_logit[-12:]
                     avg_logit = sum(history_logit)
                     idx_ = np.argmax(avg_logit, axis=1)[0]
-
                 idx, history = process_output(idx_, history)
 
                 t2 = time.time()
-                print(f"{index} {catigories[idx]}")
+                print(f"{i_frame} {catigories[idx]}")
 
 
                 current_time = t2 - t1
-
+                history_timing.append(current_time)
+                
             UDPSock.sendto(catigories[idx].encode(), addr)
-            show_array(img)
+#             show_array(img)
             IPython.display.clear_output(wait=True)
-            break
 
-            if t is None:
-                t = time.time()
-            else:
-                nt = time.time()
-                index += 1
-                t = nt
-           
     except KeyboardInterrupt:
         print("Video feed stopped.")
         cap.release()
         UDPSock.close()
         os._exit(0)
-
-
-#main()

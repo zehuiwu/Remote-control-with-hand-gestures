@@ -13,7 +13,7 @@ import torch.onnx
 from PIL import Image, ImageOps
 import tvm.contrib.graph_runtime as graph_runtime
 from mobilenet_v2_tsm import MobileNetV2
-
+from onnxsim import simplify
 import IPython
 
 # socket
@@ -38,9 +38,10 @@ def torch2tvm_module(torch_module: torch.nn.Module, torch_inputs: Tuple[torch.Te
         outs = torch_module(*torch_inputs)
         buffer.seek(0, 0)
         onnx_model = onnx.load_model(buffer)
-        from onnxsim import simplify
+
         onnx_model, success = simplify(onnx_model)  # this simplifier removes conversion bugs.
         assert success
+        
         relay_module, params = tvm.relay.frontend.from_onnx(onnx_model, shape=input_shapes)
     with tvm.relay.build_config(opt_level=3):
         graph, tvm_module, params = tvm.relay.build(relay_module, target, params=params)
@@ -80,12 +81,7 @@ def torch2executor(torch_module: torch.nn.Module, torch_inputs: Tuple[torch.Tens
 
 
 def get_executor(use_gpu=True):
-    torch_module = MobileNetV2(n_class=27)
-    if not os.path.exists("mobilenetv2_jester_online.pth.tar"):  # checkpoint not downloaded
-        print('Downloading PyTorch checkpoint...')
-        import urllib.request
-        url = 'https://hanlab.mit.edu/projects/tsm/models/mobilenetv2_jester_online.pth.tar'
-        urllib.request.urlretrieve(url, './mobilenetv2_jester_online.pth.tar')
+    torch_module = MobileNetV2(n_class=27)    
     torch_module.load_state_dict(torch.load("mobilenetv2_jester_online.pth.tar"))
     torch_inputs = (torch.rand(1, 3, 224, 224),
                     torch.zeros([1, 3, 56, 56]),
@@ -275,7 +271,7 @@ def show_array(a, fmt='jpeg'):
     Image.fromarray(a).convert('RGB').save(f, fmt) # save array to byte stream
     display(IPython.display.Image(data=f.getvalue())) # display saved array
     
-#WINDOW_NAME = 'Video Gesture Recognition'
+
 def inference():
     print("Open camera...")
     cap = cv2.VideoCapture(0)
@@ -285,21 +281,12 @@ def inference():
     # set a lower resolution for speed up
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-
-    # env variables
-    full_screen = False
-    #cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-    #cv2.resizeWindow(WINDOW_NAME, 640, 480)
-    #cv2.moveWindow(WINDOW_NAME, 0, 0)
-    #cv2.setWindowTitle(WINDOW_NAME, WINDOW_NAME)
     
     host = "192.168.1.193" # set to IP address of target computer
     port = 13000
     addr = (host, port)
     UDPSock = socket(AF_INET, SOCK_DGRAM)
 
-    t = None
-    index = 0
     print("Build transformer...")
     transform = get_transform()
     print("Build Executor...")
@@ -321,7 +308,7 @@ def inference():
     history_logit = []
     history_timing = []
 
-    i_frame = -1
+    i_frame = 0
     try:
         print("Ready!")
         while True:
@@ -359,47 +346,18 @@ def inference():
                 idx, history = process_output(idx_, history)
 
                 t2 = time.time()
-                print(f"{index} {catigories[idx]}")
+                print(f"{i_frame} {catigories[idx]}")
 
 
                 current_time = t2 - t1
-
-#             img = cv2.resize(img, (640, 480))
-#             img = img[:, ::-1]
-#             height, width, _ = img.shape
-#             label = np.zeros([height // 10, width, 3]).astype('uint8') + 255
-
-#             cv2.putText(label, 'Prediction: ' + catigories[idx],
-#                         (0, int(height / 16)),
-#                         cv2.FONT_HERSHEY_SIMPLEX,
-#                         0.7, (0, 0, 0), 2)
-#             cv2.putText(label, '{:.1f} Vid/s'.format(1 / current_time),
-#                         (width - 170, int(height / 16)),
-#                         cv2.FONT_HERSHEY_SIMPLEX,
-#                         0.7, (0, 0, 0), 2)
-
-#             img = np.concatenate((img, label), axis=0)
+                history_timing.append(current_time)
+                
             UDPSock.sendto(catigories[idx].encode(), addr)
-            show_array(img)
+#             show_array(img)
             IPython.display.clear_output(wait=True)
-            #cv2.imshow(WINDOW_NAME, img)
 
-    #         key = cv2.waitKey(1)
-    #         if key & 0xFF == ord('q') or key == 27:  # exit
-    #             break
-
-            if t is None:
-                t = time.time()
-            else:
-                nt = time.time()
-                index += 1
-                t = nt
     except KeyboardInterrupt:
         print("Video feed stopped.")
         cap.release()
         UDPSock.close()
         os._exit(0)
-        #cv2.destroyAllWindows()
-
-
-#main()

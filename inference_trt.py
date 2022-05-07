@@ -26,9 +26,9 @@ REFINE_OUTPUT = True
 
 def get_executor():
     torch_module = TRTModule()
-    torch_module.load_state_dict(torch.load("mobilenetV2_trt.pth"))
+    torch_module.load_state_dict(torch.load("mobilenetV2_trt.pth", map_location='cuda:0'))
 
-    return torch_module.cuda()
+    return torch_module
 
 
 def transform(frame: np.ndarray):
@@ -218,12 +218,12 @@ def inference():
     addr = (host, port)
     UDPSock = socket(AF_INET, SOCK_DGRAM)
 
-    t = None
-    index = 0
     print("Build transformer...")
     transform = get_transform()
     print("Build Executor...")
     executor = get_executor()
+
+
     
     buffer = (
         torch.zeros([1, 3, 56, 56], device='cuda'),
@@ -245,7 +245,7 @@ def inference():
     i_frame = 0
     try:
         print("Ready!")
-        while i_frame<1100:
+        while True:
             i_frame += 1
             _, img = cap.read()  # (480, 640, 3) 0 ~ 255
             if i_frame % 1 == 0:  # option: skip every other frame to obtain a better frame rate
@@ -254,9 +254,12 @@ def inference():
                 input_var = torch.autograd.Variable(img_tran.view(1, 3, img_tran.size(1), img_tran.size(2)))
                 img_nd = input_var.cuda()
                 inputs = (img_nd,) + buffer
-                outputs = executor(*inputs)               
+                
+                with torch.no_grad():
+                    outputs = executor(*inputs) 
+#                     print('Allocated: ',round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
                 feat, buffer = outputs[0], outputs[1:]
-
+                
                 if SOFTMAX_THRES > 0:
                     feat_np = feat.cpu().detach().numpy().reshape(-1)
                     feat_np -= feat_np.max()
@@ -294,6 +297,4 @@ def inference():
         cap.release()
         UDPSock.close()
         os._exit(0)
-
-    return history_timing
 

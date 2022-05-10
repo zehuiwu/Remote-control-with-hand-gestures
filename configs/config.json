@@ -1,0 +1,26 @@
+{
+    "model_name": "mobilenetv2",
+    "checkpoint": "trainings/jpeg_model/mobilenetv2/checkpoint.pth.tar",
+
+    "train_data_folder": "./20bn-jester-v1/videos/archive/20BN-JESTER/Train",
+    "val_data_folder": "./20bn-jester-v1/videos/archive/20BN-JESTER/Validation",
+    "train_data_csv": "./20bn-jester-v1/annotations/Train.csv",
+    "val_data_csv": "./20bn-jester-v1/annotations/Validation.csv",
+    "labels_csv": "./20bn-jester-v1/annotations/Labels.csv",
+
+    "num_workers": 8,
+
+    "output_dir": "trainings/jpeg_model/",
+
+    "num_classes": 27,
+    "batch_size": 3,
+    "clip_size": 18,
+    "nclips": 1,
+    "step_size": 2,
+    "lr": 0.001,
+    "last_lr": 0.00001,
+    "momentum": 0.9,
+    "weight_decay": 0.00001,
+    "num_epochs": 200,
+    "print_freq": 100
+}

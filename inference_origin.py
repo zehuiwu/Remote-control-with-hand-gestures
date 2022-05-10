@@ -3,13 +3,9 @@ import cv2
 import os
 from typing import Tuple
 import io
-import tvm
-import tvm.relay
 import time
-import onnx
 import torch
 import torchvision
-import torch.onnx
 from PIL import Image, ImageOps
 from mobilenet_v2_tsm import MobileNetV2
 

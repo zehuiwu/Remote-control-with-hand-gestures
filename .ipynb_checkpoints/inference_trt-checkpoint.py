@@ -10,7 +10,7 @@ from PIL import Image, ImageOps
 from model import MobileNetV2
 from torch2trt import TRTModule
 import IPython
-from utils.transform import get_transform()
+from utils.transform import get_transform
 from socket import *
 
 

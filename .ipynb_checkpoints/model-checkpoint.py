@@ -174,23 +174,3 @@ class MobileNetV2(nn.Module):
 
 def mobilenet_v2_140():
     return MobileNetV2(width_mult=1.4)
-
-
-if __name__ == '__main__':
-    net = MobileNetV2()
-    x = torch.rand(1, 3, 224, 224)
-    shift_buffer = [torch.zeros([1, 3, 56, 56]),
-                    torch.zeros([1, 4, 28, 28]),
-                    torch.zeros([1, 4, 28, 28]),
-                    torch.zeros([1, 8, 14, 14]),
-                    torch.zeros([1, 8, 14, 14]),
-                    torch.zeros([1, 8, 14, 14]),
-                    torch.zeros([1, 12, 14, 14]),
-                    torch.zeros([1, 12, 14, 14]),
-                    torch.zeros([1, 20, 7, 7]),
-                    torch.zeros([1, 20, 7, 7])]
-    with torch.no_grad():
-        for _ in range(10):
-            y, shift_buffer = net(x, *shift_buffer)
-            print([s.shape for s in shift_buffer])
-    

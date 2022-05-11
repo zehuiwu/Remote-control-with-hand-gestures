@@ -12,10 +12,10 @@ import torchvision
 import torch.onnx
 from PIL import Image, ImageOps
 import tvm.contrib.graph_runtime as graph_runtime
-from mobilenet_v2_tsm import MobileNetV2
+from model import MobileNetV2
 from onnxsim import simplify
 import IPython
-from utils.transform import get_transform()
+from utils.transform import get_transform
 from socket import *
 
 

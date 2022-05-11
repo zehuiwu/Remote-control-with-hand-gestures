@@ -8,7 +8,7 @@ import torch
 import torchvision
 from PIL import Image, ImageOps
 from model import MobileNetV2
-from utils.transform import get_transform()
+from utils.transform import get_transform
 import IPython
 from socket import *
 

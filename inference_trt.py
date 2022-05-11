@@ -112,7 +112,7 @@ def inference():
     transform = get_transform()
     print("Build Executor...")
     executor = TRTModule().cuda()
-    torch_module.load_state_dict(torch.load("./models/mobilenetV2_trt.pth"))
+    executor.load_state_dict(torch.load("./models/mobilenetV2_trt.pth"))
     
     buffer = (
         torch.zeros([1, 3, 56, 56], device='cuda'),
